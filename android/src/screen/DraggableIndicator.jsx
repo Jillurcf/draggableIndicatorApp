@@ -127,37 +127,34 @@ const { width, height } = Dimensions.get('window');
 const DraggableIndicator = () => {
   const translateX = useSharedValue(width / 2 - 25);
   const translateY = useSharedValue(height / 2 - 25);
-  const buttonRefs = useRef([React.createRef(), React.createRef(), React.createRef(), React.createRef()]);
-  const layoutMeasurements = useRef([]);
-  const [isLayoutMeasured, setIsLayoutMeasured] = useState(false);
+  const buttonRefs = useRef([]);
+  const [buttonLayouts, setButtonLayouts] = useState([]);
+  const handlers = useRef([]);
 
-  const measureLayouts = async () => {
-    const newLayouts = await Promise.all(
-      buttonRefs.current.map((ref) => {
+  useEffect(() => {
+    const measureLayouts = () => {
+      const newLayouts = buttonRefs.current.map((ref) => {
         return new Promise((resolve) => {
-          if (ref.current) {
-            ref.current.measure((fx, fy, w, h, px, py) => {
+          if (ref) {
+            ref.measure((fx, fy, w, h, px, py) => {
               resolve({ x: px, y: py, width: w, height: h });
             });
           } else {
             resolve(null);
           }
         });
-      })
-    );
+      });
 
-    layoutMeasurements.current = newLayouts.filter(Boolean);
-    setIsLayoutMeasured(true);
-  };
+      Promise.all(newLayouts).then((layouts) => {
+        setButtonLayouts(layouts.filter(Boolean));
+      });
+    };
 
-  useEffect(() => {
-    if (!isLayoutMeasured) {
-      measureLayouts();
-    }
-  }, [isLayoutMeasured]);
+    measureLayouts();
+  }, []);
 
   const checkOverlap = (x, y) => {
-    layoutMeasurements.current.forEach((layout, index) => {
+    buttonLayouts.forEach((layout, index) => {
       if (
         layout &&
         x + 50 >= layout.x &&
@@ -171,8 +168,8 @@ const DraggableIndicator = () => {
   };
 
   const triggerButtonPress = (index) => {
-    if (buttonRefs.current[index] && buttonRefs.current[index].current) {
-      buttonRefs.current[index].current.props.onPress();
+    if (handlers.current[index]) {
+      handlers.current[index]();
     }
   };
 
@@ -201,20 +198,31 @@ const DraggableIndicator = () => {
       {[0, 1, 2, 3].map((_, index) => (
         <View
           key={index}
-          ref={buttonRefs.current[index]}
           style={[styles.buttonContainer, { top: height / 2 + 100 * index }]}
+          ref={(ref) => {
+            buttonRefs.current[index] = ref;
+            handlers.current[index] = () => Alert.alert(`Button ${index + 1} clicked!`);
+          }}
           onLayout={() => {
-            if (!isLayoutMeasured) {
-              measureLayouts();
+            if (buttonRefs.current[index]) {
+              buttonRefs.current[index].measure((fx, fy, w, h, px, py) => {
+                setButtonLayouts((prevLayouts) => {
+                  const newLayouts = [...prevLayouts];
+                  newLayouts[index] = { x: px, y: py, width: w, height: h };
+                  return newLayouts;
+                });
+              });
             }
           }}
         >
           <TouchableOpacity
-            onPress={() => Alert.alert(`Button ${index + 1} clicked!`)}
-            ref={(el) => (buttonRefs.current[index] = el)}
+            onPress={() => handlers.current[index] && handlers.current[index]()}
           >
             <View style={styles.button}>
-              <Button title={`Button ${index + 1}`} onPress={() => Alert.alert(`Button ${index + 1} clicked!`)} />
+              <Button
+                title={`Button ${index + 1}`}
+                onPress={() => Alert.alert(`Button ${index + 1} clicked!`)}
+              />
             </View>
           </TouchableOpacity>
         </View>
