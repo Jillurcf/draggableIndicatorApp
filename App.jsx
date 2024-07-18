@@ -13,7 +13,6 @@ const App = () => {
         <DraggableIndicator />
       </SafeAreaView>
      </GestureHandlerRootView>
-  
   );
 };
 

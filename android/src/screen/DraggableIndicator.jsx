@@ -118,7 +118,7 @@
 
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Dimensions, Button, Alert, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Dimensions, Button, Alert, TouchableOpacity, Text } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, runOnJS } from 'react-native-reanimated';
 
@@ -127,13 +127,13 @@ const { width, height } = Dimensions.get('window');
 const DraggableIndicator = () => {
   const translateX = useSharedValue(width / 2 - 25);
   const translateY = useSharedValue(height / 2 - 25);
-  const buttonRefs = useRef([]);
-  const [buttonLayouts, setButtonLayouts] = useState([]);
+  const elementRefs = useRef([]);
+  const [elementLayouts, setElementLayouts] = useState([]);
   const handlers = useRef([]);
 
   useEffect(() => {
     const measureLayouts = () => {
-      const newLayouts = buttonRefs.current.map((ref) => {
+      const newLayouts = elementRefs.current.map((ref) => {
         return new Promise((resolve) => {
           if (ref) {
             ref.measure((fx, fy, w, h, px, py) => {
@@ -146,7 +146,7 @@ const DraggableIndicator = () => {
       });
 
       Promise.all(newLayouts).then((layouts) => {
-        setButtonLayouts(layouts.filter(Boolean));
+        setElementLayouts(layouts.filter(Boolean));
       });
     };
 
@@ -154,7 +154,7 @@ const DraggableIndicator = () => {
   }, []);
 
   const checkOverlap = (x, y) => {
-    buttonLayouts.forEach((layout, index) => {
+    elementLayouts.forEach((layout, index) => {
       if (
         layout &&
         x + 50 >= layout.x &&
@@ -162,12 +162,12 @@ const DraggableIndicator = () => {
         y + 50 >= layout.y &&
         y <= layout.y + layout.height
       ) {
-        runOnJS(triggerButtonPress)(index);
+        runOnJS(triggerElementPress)(index);
       }
     });
   };
 
-  const triggerButtonPress = (index) => {
+  const triggerElementPress = (index) => {
     if (handlers.current[index]) {
       handlers.current[index]();
     }
@@ -193,20 +193,40 @@ const DraggableIndicator = () => {
     };
   });
 
+  const registerHandler = (index, handler) => {
+    handlers.current[index] = handler;
+  };
+
+  const handlersClick = () => {
+    Alert.alert("Click me pressed!");
+  };
+
   return (
     <View style={styles.container}>
-      {[0, 1, 2, 3].map((_, index) => (
+      {[
+        { type: 'button', title: 'Button 1' },
+        { type: 'button', title: 'Button 2' },
+        { type: 'text', title: 'Text 1' },
+        { type: 'text', title: 'Text 2' },
+        { type: 'button', title: 'Click me' },  // Added click me element
+      ].map((item, index) => (
         <View
           key={index}
-          style={[styles.buttonContainer, { top: height / 2 + 100 * index }]}
+          style={[styles.elementContainer, { top: height / 4 + 75 * index }]}
           ref={(ref) => {
-            buttonRefs.current[index] = ref;
-            handlers.current[index] = () => Alert.alert(`Button ${index + 1} clicked!`);
+            elementRefs.current[index] = ref;
+            if (item.type === 'button') {
+              registerHandler(index, () => Alert.alert(`${item.title} clicked!`));
+            } else if (item.type === 'text') {
+              registerHandler(index, () => Alert.alert(`${item.title} pressed!`));
+            } else if (item.type === 'clickme') {
+              registerHandler(index, handlersClick);
+            }
           }}
           onLayout={() => {
-            if (buttonRefs.current[index]) {
-              buttonRefs.current[index].measure((fx, fy, w, h, px, py) => {
-                setButtonLayouts((prevLayouts) => {
+            if (elementRefs.current[index]) {
+              elementRefs.current[index].measure((fx, fy, w, h, px, py) => {
+                setElementLayouts((prevLayouts) => {
                   const newLayouts = [...prevLayouts];
                   newLayouts[index] = { x: px, y: py, width: w, height: h };
                   return newLayouts;
@@ -215,16 +235,36 @@ const DraggableIndicator = () => {
             }
           }}
         >
-          <TouchableOpacity
-            onPress={() => handlers.current[index] && handlers.current[index]()}
-          >
-            <View style={styles.button}>
-              <Button
-                title={`Button ${index + 1}`}
-                onPress={() => Alert.alert(`Button ${index + 1} clicked!`)}
-              />
-            </View>
-          </TouchableOpacity>
+          {item.type === 'button' ? (
+            <TouchableOpacity
+              onPress={() => handlers.current[index] && handlers.current[index]()}
+            >
+              <View style={styles.button}>
+                <Button
+                  title={item.title}
+                  onPress={() => {
+                    Alert.alert(`${item.title} clicked!`);
+                  }}
+                />
+              </View>
+            </TouchableOpacity>
+          ) : item.type === 'text' ? (
+            <TouchableOpacity
+              onPress={() => handlers.current[index] && handlers.current[index]()}
+            >
+              <View style={styles.textContainer}>
+                <Text style={styles.text}>{item.title}</Text>
+              </View>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={() => handlersClick()}
+            >
+              <View style={{}}>
+                <Text style={styles.text}>{item.title}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
       ))}
       <GestureDetector gesture={panGesture}>
@@ -245,9 +285,9 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     position: 'absolute',
   },
-  buttonContainer: {
+  elementContainer: {
     position: 'absolute',
-    left: width / 2 - 50,
+    left: width / 4 - 50,
     width: 100,
     height: 50,
   },
@@ -256,6 +296,26 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  textContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clickMeContainer: {
+    position: 'absolute',
+    bottom: 20,
+    left: width / 2 - 50,
+    width: 100,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: -1, // Ensure it does not interfere with indicator
+  },
+  text: {
+    fontSize: 18,
+    color: 'black',
   },
 });
 
